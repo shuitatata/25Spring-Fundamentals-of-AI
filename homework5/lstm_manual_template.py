@@ -64,8 +64,29 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
 
         self.hidden_size = hidden_size
+        self.input_size = input_size
 
-        # LSTM层
+        self.Wii = nn.Linear(input_size, hidden_size)  
+        self.Whi = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.Wif = nn.Linear(input_size, hidden_size)
+        self.Whf = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.Wig = nn.Linear(input_size, hidden_size)
+        self.Whg = nn.Linear(hidden_size, hidden_size, bias=False)
+        self.Wio = nn.Linear(input_size, hidden_size)
+        self.Who = nn.Linear(hidden_size, hidden_size, bias=False)
+
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+    
+    def forward(self, x, h_prev, c_prev):
+        i = self.sigmoid(self.Wii(x) + self.Whi(h_prev))  # input gate
+        f = self.sigmoid(self.Wif(x) + self.Whf(h_prev))  # forget gate
+        g = self.tanh(self.Wig(x) + self.Whg(h_prev))  # cell gate
+        o = self.sigmoid(self.Wio(x) + self.Who(h_prev))  # output gate
+
+        c = f * c_prev + i * g  # cell state
+        h = o * self.tanh(c)  # hidden state
+        return h, c  # 返回当前时刻的隐藏状态和单元状态
 
 
 # 你需要实现网络推理和训练内容，仅需要完善forward函数
@@ -73,7 +94,6 @@ class Net(nn.Module):
     '''
     一层LSTM的文本分类模型
     '''
-
     def __init__(self, embedding_size=64, hidden_size=64, num_classes=2):
         super(Net, self).__init__()
 
@@ -93,6 +113,18 @@ class Net(nn.Module):
         # 词嵌入
         x = self.embedding(x)
         # LSTM层
+        batch_size, seq_len, _ = x.size()
+        h = torch.zeros(batch_size, self.lstm.hidden_size).to(device)  # (batch_size, hidden_size)
+        c = torch.zeros(batch_size, self.lstm.hidden_size).to(device)  # (batch_size, hidden_size)
+        h_list = []
+        for t in range(seq_len):
+            h, c = self.lstm(x[:, t, :], h, c)
+            h_list.append(h.unsqueeze(1))  # (batch_size, 1, hidden_size)
+        h = torch.cat(h_list, dim=1)  # (batch_size, seq_len, hidden_size)
+        h = torch.mean(h, dim=1)  # (batch_size, hidden_size)
+        out = torch.relu(self.fc1(h))
+        out = self.fc2(out)  # (batch_size, num_classes)
+        return out
 
 
 n_epoch = 5

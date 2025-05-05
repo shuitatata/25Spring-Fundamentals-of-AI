@@ -3,7 +3,7 @@ import os
 
 import torch
 from torch.nn import Module
-from torch.nn import Linear, LSTM, Embedding
+from torch.nn import Linear, LSTM, Embedding, RNN, GRU
 from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import StepLR
 import numpy as np
@@ -26,6 +26,8 @@ else:
     print("MLU is not available, use GPU/CPU instead.")
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
     else:
         device = torch.device('cpu')
 num_of_layers = 1
@@ -65,7 +67,10 @@ class ImdbNet(Module):
     def __init__(self):
         super(ImdbNet, self).__init__()
         self.embedding = Embedding(num_embeddings=vocab_size, embedding_dim=64)
-        self.lstm = LSTM(input_size=64, hidden_size=64)
+        # lstm
+        self.lstm = LSTM(input_size=64, hidden_size=64) 
+        #inputs(input(L, batch_size, input_size), h0(1, batch_size, hidden_size), c0(1, batch_size, hidden_size))
+        #outputs(output(L, batch_size, hidden_size), h_n(1, batch_size, hidden_size), c_n(1, batch_size, hidden_size))
         self.linear1 = Linear(in_features=64, out_features=64)
         self.act1 = torch.nn.ReLU()
         self.linear2 = Linear(in_features=64, out_features=2)
@@ -83,6 +88,53 @@ class ImdbNet(Module):
         x = self.linear2(x)
         return x
 
+class ImdbNet_RNN(Module):
+    def __init__(self):
+        super(ImdbNet_RNN, self).__init__()
+        self.embedding = Embedding(num_embeddings=vocab_size, embedding_dim=64)
+        # lstm
+        self.rnn = RNN(input_size=64, hidden_size=64) 
+        #inputs(input(L, batch_size, input_size), h0(1, batch_size, hidden_size))
+        #outputs(output(L, batch_size, hidden_size), h_n(1, batch_size, hidden_size))
+        self.linear1 = Linear(in_features=64, out_features=64)
+        self.act1 = torch.nn.ReLU()
+        self.linear2 = Linear(in_features=64, out_features=2)
+
+    def forward(self, x):
+        batch_size_in_forward = x.shape[0]
+        prev_h = torch.zeros(num_of_layers, batch_size_in_forward, hidden_size).to(device)  #(num_layers, batch_size, hidden_size)
+        x = self.embedding(x)
+        x = x.permute(1, 0, 2)  # x经过permute将变成 (seq_len, batch_size, input_size), 便于适应RNN输入
+        x, _ = self.rnn(x, prev_h)
+        x = torch.mean(x, dim=0)  # 对seq_len维度求均值，得到一个batch_size个、长为hidden_size的向量作为输出
+        x = self.linear1(x)
+        x = self.act1(x)
+        x = self.linear2(x)
+        return x
+
+class ImdbNet_GRU(Module):
+    def __init__(self):
+        super(ImdbNet_GRU, self).__init__()
+        self.embedding = Embedding(num_embeddings=vocab_size, embedding_dim=64)
+        # lstm
+        self.gru = GRU(input_size=64, hidden_size=64) 
+        #inputs(input(L, batch_size, input_size), h0(1, batch_size, hidden_size))
+        #outputs(output(L, batch_size, hidden_size), h_n(1, batch_size, hidden_size))
+        self.linear1 = Linear(in_features=64, out_features=64)
+        self.act1 = torch.nn.ReLU()
+        self.linear2 = Linear(in_features=64, out_features=2)
+
+    def forward(self, x):
+        batch_size_in_forward = x.shape[0]
+        prev_h = torch.zeros(num_of_layers, batch_size_in_forward, hidden_size).to(device)  #(num_layers, batch_size, hidden_size)
+        x = self.embedding(x)
+        x = x.permute(1, 0, 2)  # x经过permute将变成 (seq_len, batch_size, input_size), 便于适应GRU输入
+        x, _ = self.gru(x, prev_h)
+        x = torch.mean(x, dim=0)  # 对seq_len维度求均值，得到一个batch_size个、长为hidden_size的向量作为输出
+        x = self.linear1(x)
+        x = self.act1(x)
+        x = self.linear2(x)
+        return x
 
 # 定义超参
 n_epoch = 5
@@ -93,7 +145,7 @@ train_dataset = ImdbDataset(X=X_train, y=y_train)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_dataset = ImdbDataset(X=X_test, y=y_test)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-net = ImdbNet()
+net = ImdbNet_GRU()
 metric = Accuracy()
 print(net)
 
