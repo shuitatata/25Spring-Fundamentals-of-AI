@@ -104,6 +104,8 @@ Train Epoch: 5 Loss: 0.184861    Acc: 0.933207
 Test set: Average loss: 0.3591, Accuracy: 0.8576
 ```
 
+---
+
 # 作业2 手写LSTM实验
 参考 `pytorch` 的实现：
 $$
