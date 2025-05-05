@@ -24,9 +24,10 @@ flags = {
     "sample_dir": "samples/{}".format(start_time),
 }
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if torch.backends.mps.is_available():
     device = torch.device("mps")
+elif torch.cuda.is_available():
+    device = torch.device("cuda:0")
 else:
     device = torch.device("cpu")
 # device = torch.device("cpu")
